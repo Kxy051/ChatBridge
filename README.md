@@ -1,5 +1,10 @@
 # ChatBridge
 
+### 增加启动命令
+
+- python ChatBridge.pyz koishi_bot
+
+
 > Broadcast chat between Minecraft servers or even discord server
 
 See [here](https://github.com/TISUnion/ChatBridge/tree/v1) for chatbridge v1. **NOT compatible with Chatbridge v1**
