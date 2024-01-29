@@ -1,5 +1,6 @@
 import html
 import json
+import time
 from typing import Optional
 
 import websocket
@@ -19,6 +20,7 @@ class KoiBot:
     def __init__(self, config: KoishiConfig):
         self.config = config
         self.logger = ChatBridgeLogger('Bot', file_handler=chatClient.logger.file_handler)
+        self.current_retry = 0
         websocket.enableTrace(True)
         self.logger.info(f'Connecting to ws://{self.config.ws_address}:{self.config.ws_port}')
         self.ws = websocket.WebSocketApp(
@@ -46,6 +48,19 @@ class KoiBot:
 
     def on_close(self, *args):
         self.logger.info("Close connection")
+        while self.current_retry < 3:
+            try:
+                if self.ws.sock:
+                    self.ws.close()
+                self.logger.info("Retrying in 5 seconds...")
+                time.sleep(5)
+                self.ws.run_forever()
+            except Exception as e:
+                self.current_retry += 1
+                self.logger.error(f"Connection failed: {e}")
+            else:
+                self.current_retry = 0
+        self.logger.error(f"Maximum retries (3) reached. Exiting...")
 
     def send_text(self, text):
         data = {
