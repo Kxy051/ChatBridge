@@ -1,5 +1,6 @@
 import html
 import json
+import time
 from typing import Optional
 
 import websocket
@@ -19,6 +20,7 @@ class KoiBot:
     def __init__(self, config: KoishiConfig):
         self.config = config
         self.logger = ChatBridgeLogger('Bot', file_handler=chatClient.logger.file_handler)
+        self.current_retry = 0
         websocket.enableTrace(True)
         self.logger.info(f'Connecting to ws://{self.config.ws_address}:{self.config.ws_port}')
         self.ws = websocket.WebSocketApp(
@@ -35,9 +37,7 @@ class KoiBot:
     def on_message(self, _, message: str):
         try:
             data = json.loads(message)
-            # 处理收到的消息
             self.logger.info('QQ chat message: {}'.format(data))
-            args = data['message']
             sender = data['sender']
             text = html.unescape(data['message'])
             chatClient.broadcast_chat(text, sender)
@@ -48,6 +48,19 @@ class KoiBot:
 
     def on_close(self, *args):
         self.logger.info("Close connection")
+        while self.current_retry < 3:
+            try:
+                if self.ws.sock:
+                    self.ws.close()
+                self.logger.info("Retrying in 5 seconds...")
+                time.sleep(5)
+                self.ws.run_forever()
+            except Exception as e:
+                self.current_retry += 1
+                self.logger.error(f"Connection failed: {e}")
+            else:
+                self.current_retry = 0
+        self.logger.error(f"Maximum retries (3) reached. Exiting...")
 
     def send_text(self, text):
         data = {
@@ -65,7 +78,6 @@ class KoishiChatBridgeClient(ChatBridgeClient):
         if koishi_bot is None:
             return
         try:
-            message = payload.message.strip()  # 移除消息前后的空格
             koishi_bot.send_message(sender, payload.formatted_str())
         except Exception as e:
             self.logger.error(f"Error processing chat event: {e}")
