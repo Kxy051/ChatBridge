@@ -36,7 +36,6 @@ class KoiBot:
         self.ws.run_forever()
 
     def on_message(self, _, message: str):
-        print(self.ws.sock, 1)
         try:
             data = json.loads(message)
             self.logger.info('QQ chat message: {}'.format(data))
@@ -49,20 +48,17 @@ class KoiBot:
             self.logger.exception(f'Error in on_message(): {e}')
 
     def on_open(self, *args):
-        print(self.ws.sock, 3)
         self.current_retry = 0
 
     def on_close(self, *args):
         self.logger.info("Close connection")
-        while self.current_retry < 3:
+        while self.current_retry < 6:
             try:
-                if self.ws.sock:
-                    self.ws.close()
-                    print(self.ws.sock, 2)
+                self.ws.close()
                 self.logger.info("Retrying in 5 seconds...")
                 time.sleep(5)
-                self.ws.run_forever()
                 self.current_retry += 1
+                self.ws.run_forever()
             except Exception as e:
                 self.logger.error(f"Connection failed: {e}")
         self.logger.info(f"Maximum retries (6) reached. Exiting...")
