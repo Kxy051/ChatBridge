@@ -25,6 +25,7 @@ class KoiBot:
         self.logger.info(f'Connecting to ws://{self.config.ws_address}:{self.config.ws_port}')
         self.ws = websocket.WebSocketApp(
             f'ws://{self.config.ws_address}:{self.config.ws_port}',
+            on_open=self.on_open,
             on_message=self.on_message,
             on_close=self.on_close
         )
@@ -47,6 +48,10 @@ class KoiBot:
         except Exception as e:
             self.logger.exception(f'Error in on_message(): {e}')
 
+    def on_open(self, *args):
+        print(self.ws.sock, 3)
+        self.current_retry = 0
+
     def on_close(self, *args):
         self.logger.info("Close connection")
         while self.current_retry < 3:
@@ -57,11 +62,10 @@ class KoiBot:
                 self.logger.info("Retrying in 5 seconds...")
                 time.sleep(5)
                 self.ws.run_forever()
-                print(self.ws.sock, 3)
                 self.current_retry += 1
             except Exception as e:
                 self.logger.error(f"Connection failed: {e}")
-        self.logger.error(f"Maximum retries (6) reached. Exiting...")
+        self.logger.info(f"Maximum retries (6) reached. Exiting...")
 
     def send_text(self, text):
         data = {
