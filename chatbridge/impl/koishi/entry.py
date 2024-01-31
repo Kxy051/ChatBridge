@@ -57,6 +57,7 @@ class KoiBot:
                 self.logger.info("Retrying in 5 seconds...")
                 time.sleep(5)
                 self.ws.run_forever()
+                print(self.ws.sock, 3)
                 if self.ws.sock is None:
                     self.current_retry += 1
             except Exception as e:
