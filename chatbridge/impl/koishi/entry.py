@@ -26,8 +26,7 @@ class KoiBot:
         self.ws = websocket.WebSocketApp(
             f'ws://{self.config.ws_address}:{self.config.ws_port}',
             on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close,
+            on_close=self.on_close
         )
         if self.config.access_token:
             self.ws.url += f'?access_token={self.config.access_token}'
@@ -36,6 +35,7 @@ class KoiBot:
         self.ws.run_forever()
 
     def on_message(self, _, message: str):
+        print(self.ws.sock, 1)
         try:
             data = json.loads(message)
             self.logger.info('QQ chat message: {}'.format(data))
@@ -47,12 +47,8 @@ class KoiBot:
         except Exception as e:
             self.logger.exception(f'Error in on_message(): {e}')
 
-    def on_error(self, error):
-        print('错误：', error)
-
     def on_close(self, *args):
         self.logger.info("Close connection")
-        print(self.ws.sock, 1)
         while self.current_retry < 6:
             try:
                 if self.ws.sock:
@@ -61,7 +57,8 @@ class KoiBot:
                 self.logger.info("Retrying in 5 seconds...")
                 time.sleep(5)
                 self.ws.run_forever()
-                self.current_retry += 1
+                if self.ws.sock is None:
+                    self.current_retry += 1
             except Exception as e:
                 self.logger.error(f"Connection failed: {e}")
         self.logger.error(f"Maximum retries (6) reached. Exiting...")
