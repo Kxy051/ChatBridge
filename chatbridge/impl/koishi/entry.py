@@ -48,7 +48,7 @@ class KoiBot:
 
     def on_close(self, *args):
         self.logger.info("Close connection")
-        while self.current_retry < 3:
+        while self.current_retry < 6:
             try:
                 if self.ws.sock:
                     self.ws.close()
@@ -59,8 +59,9 @@ class KoiBot:
                 self.current_retry += 1
                 self.logger.error(f"Connection failed: {e}")
             else:
-                self.current_retry = 0
-        self.logger.error(f"Maximum retries (3) reached. Exiting...")
+                if self.ws.sock:
+                    self.current_retry = 0
+        self.logger.error(f"Maximum retries (6) reached. Exiting...")
 
     def send_text(self, text):
         data = {
