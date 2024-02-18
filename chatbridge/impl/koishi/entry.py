@@ -21,16 +21,16 @@ class KoiBot:
         self.logger = ChatBridgeLogger('Bot', file_handler=chatClient.logger.file_handler)
         self.current_retry = 0
         websocket.enableTrace(True)
+        self.logger.info(f'Connecting to ws://{self.config.ws_address}:{self.config.ws_port}')
         self.ws = websocket.WebSocketApp(
             f'ws://{self.config.ws_address}:{self.config.ws_port}',
             on_message=self.on_message,
             on_close=self.on_close
         )
-        self.logger.info(f'Connecting to ws://{self.config.ws_address}:{self.config.ws_port}')
-
-    def start(self):
         if self.config.access_token:
             self.ws.url += f'?access_token={self.config.access_token}'
+
+    def start(self):
         self.ws.run_forever()
 
     def on_message(self, _, message: str):
@@ -49,11 +49,10 @@ class KoiBot:
         self.logger.info("Close connection")
 
     def send_text(self, text):
-        if hasattr(self, 'ws') and self.ws:
-            data = {
-                "message": text
-            }
-            self.ws.send(json.dumps(data))
+        data = {
+            "message": text
+        }
+        self.ws.send(json.dumps(data))
 
     def send_message(self, sender: str, message: str):
         self.send_text('[{}] {}'.format(sender, message))
@@ -74,6 +73,7 @@ def main():
     global chatClient, koishi_bot
     config = utils.load_config(ConfigFile, KoishiConfig)
     chatClient = KoishiChatBridgeClient.create(config)
+    utils.start_guardian(chatClient)
     utils.register_exit_on_termination()
     koishi_bot = KoiBot(config)
     koishi_bot.logger.info('Starting KoiBot...')
