@@ -1,6 +1,5 @@
 import html
 import json
-import signal
 import sys
 import threading
 import time
@@ -21,18 +20,21 @@ chatClient: Optional['KoishiChatBridgeClient'] = None
 
 class KoiBot:
     def __init__(self, config: KoishiConfig):
+        self.usertype_thread = None
         self.websocket_thread = None
         self.config = config
         self.logger = ChatBridgeLogger('Bot', file_handler=chatClient.logger.file_handler)
         self.current_retry = 0
-        self.websocket_ready = threading.Event()  # Event to indicate WebSocket is ready
-        self.should_stop = threading.Event()  # Event to indicate whether to stop the websocket thread
+        self.websocket_ready = False  # To indicate WebSocket is ready
         websocket.enableTrace(True)
         self.logger.info(f'Connecting to ws://{self.config.ws_address}:{self.config.ws_port}')
 
     def start(self):
         self.websocket_thread = threading.Thread(target=self._start_websocket)
         self.websocket_thread.start()
+        self.usertype_thread = threading.Thread(target=self.user_type)
+        self.usertype_thread.daemon = True
+        self.usertype_thread.start()
 
     def _start_websocket(self):
         self.ws = websocket.WebSocketApp(
@@ -45,13 +47,18 @@ class KoiBot:
             self.ws.url += f'?access_token={self.config.access_token}'
         self.ws.run_forever()
 
+    def user_type(self):
+        while self.websocket_ready != 'fail':
+            user_input = input().strip().lower()  # Ensure lowercase for comparison
+            if user_input == "stop":
+                self.stop()
+
     def stop(self):
         if hasattr(self, 'ws') and self.ws:
-            self.should_stop.set()  # Set the event to indicate the websocket thread should stop
             self.current_retry = 233
-            self.ws.close()
-            koishi_bot.logger.info('Bye~')
-            sys.exit(0)
+        self.ws.close()
+        koishi_bot.logger.info('Bye~')
+        sys.exit(0)
 
     def on_message(self, _, message: str):
         try:
@@ -67,24 +74,27 @@ class KoiBot:
 
     def on_open(self, *args):
         self.current_retry = 0
-        self.websocket_ready.set()  # Set the event to indicate WebSocket is ready
+        self.websocket_ready = 'ready'  # The WebSocket is ready
+        self.logger.info("Type 'stop' to exit.")
 
     def on_close(self, *args):
         self.logger.info("Close connection")
-        while self.current_retry < 6:
+        while self.current_retry < 2:
             try:
-                self.ws.close()
                 self.logger.info("Retrying in 5 seconds...")
                 time.sleep(5)
                 self.current_retry += 1
-                if self.should_stop.is_set():  # Check if the stop event is set
-                    break
                 self._start_websocket()
             except Exception as e:
                 self.logger.error(f"Connection failed: {e}")
+                self.ws.close()
         else:
-            if self.current_retry == 6:
+            if self.current_retry == 2:
                 self.logger.info(f"Maximum retries (6) reached. Exiting...")
+                self.websocket_ready = 'fail'
+                self.stop()
+            if self.current_retry > 6:
+                self.websocket_ready = 'fail'
 
     def send_text(self, text):
         if hasattr(self, 'ws') and self.ws:
@@ -108,29 +118,16 @@ class KoishiChatBridgeClient(ChatBridgeClient):
             self.logger.error(f"Error processing chat event: {e}")
 
 
-def exit_gracefully(signum, frame):
-    global koishi_bot
-    if koishi_bot:
-        koishi_bot.stop()
-
-
 def main():
     global chatClient, koishi_bot
     config = utils.load_config(ConfigFile, KoishiConfig)
     chatClient = KoishiChatBridgeClient.create(config)
-    utils.start_guardian(chatClient)
-    signal.signal(signal.SIGINT, exit_gracefully)  # Register exit handler for SIGINT
     koishi_bot = KoiBot(config)
     koishi_bot.logger.info('Starting KoiBot...')
     koishi_bot.start()
-    koishi_bot.websocket_ready.wait()  # Wait for WebSocket to be ready
-    koishi_bot.logger.info("Type 'stop' or press Ctrl+C to exit.")
-
-    # Wait for user input to stop
     while True:
-        user_input = input().strip().lower()  # Ensure lowercase for comparison
-        if user_input == "stop":
-            exit_gracefully(signal.SIGINT, None)
+        if koishi_bot.websocket_ready == 'fail':
+            sys.exit(0)
 
 
 if __name__ == '__main__':
