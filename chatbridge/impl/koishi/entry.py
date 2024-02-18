@@ -51,13 +51,12 @@ class KoiBot:
         while self.websocket_ready != 'fail':
             user_input = input().strip().lower()  # Ensure lowercase for comparison
             if user_input == "stop":
-                self.stop()
+                self.stop_process()
 
-    def stop(self):
+    def stop_process(self):
         if hasattr(self, 'ws') and self.ws:
             self.current_retry = 233
-        self.ws.close()
-        koishi_bot.logger.info('Bye~')
+            self.ws.close()
         sys.exit(0)
 
     def on_message(self, _, message: str):
@@ -79,7 +78,7 @@ class KoiBot:
 
     def on_close(self, *args):
         self.logger.info("Close connection")
-        while self.current_retry < 2:
+        while self.current_retry < 6:
             try:
                 self.logger.info("Retrying in 5 seconds...")
                 time.sleep(5)
@@ -89,10 +88,10 @@ class KoiBot:
                 self.logger.error(f"Connection failed: {e}")
                 self.ws.close()
         else:
-            if self.current_retry == 2:
+            if self.current_retry == 6:
                 self.logger.info(f"Maximum retries (6) reached. Exiting...")
                 self.websocket_ready = 'fail'
-                self.stop()
+                self.stop_process()
             if self.current_retry > 6:
                 self.websocket_ready = 'fail'
 
@@ -125,9 +124,14 @@ def main():
     koishi_bot = KoiBot(config)
     koishi_bot.logger.info('Starting KoiBot...')
     koishi_bot.start()
-    while True:
-        if koishi_bot.websocket_ready == 'fail':
-            sys.exit(0)
+    try:
+        while True:
+            if koishi_bot.websocket_ready == 'fail':
+                koishi_bot.logger.info('Bye~')
+                koishi_bot.stop_process()
+    except KeyboardInterrupt:
+        koishi_bot.logger.info('Bye~')
+        koishi_bot.stop_process()
 
 
 if __name__ == '__main__':
