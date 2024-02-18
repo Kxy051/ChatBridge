@@ -75,8 +75,8 @@ def main():
     chatClient = KoishiChatBridgeClient.create(config)
     utils.start_guardian(chatClient)
     utils.register_exit_on_termination()
-    koishi_bot = KoiBot(config)
     koishi_bot.logger.info('Starting KoiBot...')
+    koishi_bot = KoiBot(config)
     koishi_bot.start()
     koishi_bot.logger.info('Bye~')
 
